@@ -1,0 +1,190 @@
+// SportsSun Inventory & Warehouse Management — database schema
+// Run: npx prisma migrate dev --name init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  REGIONAL_MANAGER
+  STORE_MANAGER
+}
+
+enum Condition {
+  NEW
+  DAMAGED
+  RETURNED
+  SAMPLE
+}
+
+enum TransferStatus {
+  PENDING
+  IN_TRANSIT
+  RECEIVED
+  COMPLETED
+}
+
+model User {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  passwordHash String
+  role        Role
+  storeId     String?
+  regionId    String?
+  twoFaSecret String?
+  createdAt   DateTime @default(now())
+  auditLogs   AuditLog[]
+  notifications Notification[]
+}
+
+model Location {
+  id              String   @id @default(cuid())
+  name            String
+  code            String   @unique
+  type            String   // "warehouse" | "store"
+  address         String
+  city            String
+  state           String
+  pincode         String
+  contactPerson   String?
+  phone           String?
+  capacityUnits   Int?
+  latitude        Float?
+  longitude       Float?
+  isActive        Boolean  @default(true)
+  inventory       Inventory[]
+  transfersFrom   Transfer[] @relation("TransferFrom")
+  transfersTo     Transfer[] @relation("TransferTo")
+  employees       Employee[]
+  sales           Sale[]
+}
+
+model Product {
+  id            String   @id @default(cuid())
+  sku           String   @unique
+  name          String
+  category      String
+  subCategory   String
+  size          String
+  color         String
+  colorHex      String?
+  mfgDate       DateTime?
+  batchNo       String?
+  costPrice     Decimal
+  sellingPrice  Decimal
+  minStock      Int      @default(20)
+  condition     Condition @default(NEW)
+  supplierName  String?
+  inventory     Inventory[]
+  sales         Sale[]
+  createdAt     DateTime @default(now())
+}
+
+model Inventory {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  locationId  String
+  location    Location @relation(fields: [locationId], references: [id])
+  quantity    Int      @default(0)
+  rackShelf   String?
+  dateStored  DateTime @default(now())
+
+  @@unique([productId, locationId])
+}
+
+model Transfer {
+  id             String         @id @default(cuid())
+  fromLocationId String
+  fromLocation   Location       @relation("TransferFrom", fields: [fromLocationId], references: [id])
+  toLocationId   String
+  toLocation     Location       @relation("TransferTo", fields: [toLocationId], references: [id])
+  itemsJson      Json
+  status         TransferStatus @default(PENDING)
+  initiatedBy    String
+  initiatedAt    DateTime       @default(now())
+  completedAt    DateTime?
+}
+
+model Employee {
+  id              String   @id @default(cuid())
+  name            String
+  email           String?  @unique
+  phone           String?
+  userId          String?  @unique
+  storeId         String?
+  location        Location? @relation(fields: [storeId], references: [id])
+  managerId       String?
+  shift           String?
+  designation     String?
+  salary          Decimal  @default(0)
+  hikePercent     Float    @default(0)
+  experienceYears Float    @default(0)
+  joinDate        DateTime @default(now())
+  attendance      Attendance[]
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LEAVE
+  HALF_DAY
+}
+
+model Attendance {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  date       DateTime @default(now())
+  status     AttendanceStatus @default(PRESENT)
+
+  @@unique([employeeId, date])
+}
+
+model Sale {
+  id            String   @id @default(cuid())
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id])
+  storeId       String
+  location      Location @relation(fields: [storeId], references: [id])
+  quantity      Int
+  price         Decimal
+  saleDate      DateTime @default(now())
+  salespersonId String?
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String
+  details   String?
+  ipAddress String?
+  timestamp DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model StockAlert {
+  id         String   @id @default(cuid())
+  productId  String
+  threshold  Int
+  alertType  String
+  resolved   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}

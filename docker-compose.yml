@@ -1,0 +1,29 @@
+version: "3.9"
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sportssun
+      POSTGRES_PASSWORD: sportssun
+      POSTGRES_DB: sportssun
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://sportssun:sportssun@db:5432/sportssun
+      JWT_SECRET: change-me
+      JWT_REFRESH_SECRET: change-me-too
+      PORT: 4000
+    ports:
+      - "4000:4000"
+
+volumes:
+  pgdata:
